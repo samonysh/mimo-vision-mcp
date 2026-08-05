@@ -237,6 +237,7 @@ def main() -> None:
             transport="streamable-http",
             host=MCP_HOST,
             port=MCP_PORT,
+            stateless_http=True,
         )
     else:
         raise ValueError(
