@@ -65,6 +65,9 @@ copy .env.example .env   # Windows
 | `MCP_TRANSPORT` | 否 | `stdio` | 传输模式：`stdio` 或 `streamable-http` |
 | `MCP_HOST` | 否 | `0.0.0.0` | HTTP 模式监听地址 |
 | `MCP_PORT` | 否 | `8000` | HTTP 模式监听端口 |
+| `UPLOAD_DIR` | 否 | `/tmp/mimo-uploads` | 上传文件目录 |
+| `UPLOAD_TTL` | 否 | `1800` | 上传文件过期时间（秒），默认 30 分钟 |
+| `CLEANUP_INTERVAL` | 否 | `300` | 清理检查间隔（秒），默认 5 分钟 |
 
 ### 3. 启动服务器
 
@@ -126,6 +129,45 @@ python server.py
 
 - `image`: 图片 URL 或本地绝对路径（必填）
 - `model` / `max_tokens`: 可选，覆盖默认值
+
+### 4. `upload_image` 上传本地图片（远程模式专用）
+
+将本地图片编码为 base64 后上传到服务器，返回可直接用于其他工具的 URL。上传的图片 **30 分钟后自动删除**。
+
+- `image_data`: base64 编码的图片数据，可带 `data:image/xxx;base64,` 前缀（必填）
+- `filename`: 可选，原始文件名，用于推断图片格式
+
+**使用场景**：远程部署时，客户端有本地图片文件需要识别。
+
+## 图片上传（HTTP 模式）
+
+远程部署时，服务器提供多种方式上传本地图片，返回 URL 后即可调用识别工具。
+
+### 方式一：curl 上传文件（推荐）
+
+```bash
+curl -X POST http://<VPS_IP>:18253/upload -F "file=@/path/to/image.jpg"
+# 返回: {"url":"http://<VPS_IP>:18253/uploads/xxx.jpg","path":"/tmp/mimo-uploads/xxx.jpg"}
+```
+
+### 方式二：base64 JSON 上传
+
+```bash
+curl -X POST http://<VPS_IP>:18253/upload/base64 \
+  -H "Content-Type: application/json" \
+  -d '{"image":"data:image/jpeg;base64,/9j/4AAQ...","ext":".jpg"}'
+```
+
+### 方式三：MCP upload_image 工具
+
+通过 MCP 协议直接上传 base64 图片（适合 AI 客户端调用）。
+
+### 自动清理
+
+- 上传的文件保存在 `/tmp/mimo-uploads/`（可通过 `UPLOAD_DIR` 环境变量配置）
+- 每 5 分钟检查一次，自动删除超过 30 分钟的文件
+- 容器重启时自动清空所有上传文件
+- 可通过 `UPLOAD_TTL`（过期秒数）和 `CLEANUP_INTERVAL`（检查间隔秒数）环境变量调整
 
 ## 调用示例
 
