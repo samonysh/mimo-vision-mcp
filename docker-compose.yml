@@ -1,7 +1,7 @@
 services:
   mimo-vision-mcp:
-    # 使用 GitHub Actions 自动构建的镜像（替换 <你的用户名> 为实际 GitHub 用户名）
-    image: ghcr.io/<你的用户名>/mimo-vision-mcp:latest
+    # 使用 GitHub Actions 自动构建的镜像
+    image: ghcr.io/samonysh/mimo-vision-mcp:latest
     # 如需本地构建，取消下面一行的注释
     # build: .
     ports:
