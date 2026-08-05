@@ -5,7 +5,7 @@ services:
     # 如需本地构建，取消下面一行的注释
     # build: .
     ports:
-      - "8000:8000"
+      - "18253:8000"
     environment:
       # API Key 由客户端通过请求头 X-Mimo-Api-Key 传入，VPS 上无需配置
       - MIMO_BASE_URL=${MIMO_BASE_URL:-https://api.xiaomimimo.com/v1}

@@ -25,8 +25,12 @@ from typing import Any
 
 import httpx
 from dotenv import load_dotenv
-from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_request
+
+# 兼容两种包：优先使用 fastmcp（Docker/HTTP 模式），回退到 mcp.server.fastmcp（stdio 模式）
+try:
+    from fastmcp import FastMCP
+except ImportError:
+    from mcp.server.fastmcp import FastMCP
 
 # 加载 .env 文件（若存在）
 load_dotenv()
@@ -97,6 +101,7 @@ def _local_image_to_data_url(path: str) -> str:
 def _get_api_key() -> str:
     """获取 API Key：优先从 HTTP 请求头 X-Mimo-Api-Key 获取，回退到环境变量。"""
     try:
+        from fastmcp.server.dependencies import get_http_request
         request = get_http_request()
         if request is not None:
             key = request.headers.get("x-mimo-api-key", "")
