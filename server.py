@@ -112,7 +112,7 @@ def _get_api_key() -> str:
     return API_KEY
 
 
-def _call_mimo(messages: list[dict[str, Any]], model: str, max_tokens: int) -> str:
+async def _call_mimo(messages: list[dict[str, Any]], model: str, max_tokens: int) -> str:
     """调用小米 MiMo /chat/completions OpenAI 兼容接口。"""
     api_key = _get_api_key()
     if not api_key:
@@ -130,8 +130,8 @@ def _call_mimo(messages: list[dict[str, Any]], model: str, max_tokens: int) -> s
         "Content-Type": "application/json",
     }
 
-    with httpx.Client(timeout=httpx.Timeout(120.0, connect=30.0)) as client:
-        resp = client.post(CHAT_URL, headers=headers, json=payload)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=30.0)) as client:
+        resp = await client.post(CHAT_URL, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
 
@@ -168,7 +168,7 @@ def _build_messages(
 # MCP Tools
 # ---------------------------------------------------------------------------
 @mcp.tool()
-def describe_image(
+async def describe_image(
     image: str,
     prompt: str | None = None,
     model: str | None = None,
@@ -178,17 +178,17 @@ def describe_image(
 
     Args:
         image: 图片的 http/https URL，或本地图片文件绝对路径（如 C:/path/to/img.png）。
-        prompt: 可选的提问/描述指令，默认“请描述这张图片的内容”。
+        prompt: 可选的提问/描述指令，默认"请描述这张图片的内容"。
         model: 可选，覆盖默认模型（默认为环境变量 MIMO_MODEL 或 mimo-v2.5）。
         max_tokens: 可选，覆盖默认最大生成 token 数。
     """
     text = prompt or "请描述这张图片的内容。"
     messages = _build_messages(image, text)
-    return _call_mimo(messages, model or DEFAULT_MODEL, max_tokens or DEFAULT_MAX_TOKENS)
+    return await _call_mimo(messages, model or DEFAULT_MODEL, max_tokens or DEFAULT_MAX_TOKENS)
 
 
 @mcp.tool()
-def chat_with_image(
+async def chat_with_image(
     image: str,
     question: str,
     model: str | None = None,
@@ -205,11 +205,11 @@ def chat_with_image(
         system_prompt: 可选，自定义 system 提示词。
     """
     messages = _build_messages(image, question, system=system_prompt)
-    return _call_mimo(messages, model or DEFAULT_MODEL, max_tokens or DEFAULT_MAX_TOKENS)
+    return await _call_mimo(messages, model or DEFAULT_MODEL, max_tokens or DEFAULT_MAX_TOKENS)
 
 
 @mcp.tool()
-def ocr_image(
+async def ocr_image(
     image: str,
     model: str | None = None,
     max_tokens: int | None = None,
@@ -223,7 +223,7 @@ def ocr_image(
     """
     text = "请识别这张图片中的所有文字并原样输出。"
     messages = _build_messages(image, text)
-    return _call_mimo(messages, model or DEFAULT_MODEL, max_tokens or DEFAULT_MAX_TOKENS)
+    return await _call_mimo(messages, model or DEFAULT_MODEL, max_tokens or DEFAULT_MAX_TOKENS)
 
 
 # ---------------------------------------------------------------------------
