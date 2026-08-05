@@ -1,0 +1,17 @@
+services:
+  mimo-vision-mcp:
+    # 使用 GitHub Actions 自动构建的镜像（替换 <你的用户名> 为实际 GitHub 用户名）
+    image: ghcr.io/<你的用户名>/mimo-vision-mcp:latest
+    # 如需本地构建，取消下面一行的注释
+    # build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MIMO_API_KEY=${MIMO_API_KEY}
+      - MIMO_BASE_URL=${MIMO_BASE_URL:-https://api.xiaomimimo.com/v1}
+      - MIMO_MODEL=${MIMO_MODEL:-mimo-v2.5}
+      - MIMO_MAX_TOKENS=${MIMO_MAX_TOKENS:-1024}
+      - MCP_TRANSPORT=streamable-http
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+    restart: unless-stopped
