@@ -71,8 +71,7 @@ CLEANUP_INTERVAL = int(os.getenv("CLEANUP_INTERVAL", "300"))  # 5 分钟
 # 允许的图片 MIME 类型（OpenAI 兼容接口通常接受这些）
 _ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 
-# 创建 FastMCP 实例（fastmcp 模式下启用 stateless_http）
-_kwargs = {"stateless_http": True} if _HAS_FASTMCP else {}
+# 创建 FastMCP 实例
 mcp = FastMCP(
     "mimo-vision",
     instructions=(
@@ -80,7 +79,6 @@ mcp = FastMCP(
         "支持图像描述、图像问答、OCR 识别等任务。"
         "远程部署时，可使用 upload_image 工具先上传本地图片，再调用识别工具。"
     ),
-    **_kwargs,
 )
 
 
@@ -376,7 +374,22 @@ def _create_app():
                 if f.is_file() and (now - f.stat().st_mtime) > UPLOAD_TTL:
                     f.unlink(missing_ok=True)
 
-    mcp_app = mcp.http_app()
+    mcp_app = mcp.http_app(stateless_http=True)
+
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def lifespan(app):
+        # 启动时清理旧文件
+        for f in UPLOAD_DIR.iterdir():
+            if f.is_file():
+                f.unlink(missing_ok=True)
+        # 启动定期清理协程
+        task = asyncio.create_task(cleanup_task())
+        # 调用 MCP app 的 lifespan（初始化 session manager 等）
+        async with mcp_app.lifespan(app):
+            yield
+        task.cancel()
 
     app = Starlette(
         routes=[
@@ -384,17 +397,9 @@ def _create_app():
             Route("/upload/base64", upload_base64, methods=["POST"]),
             Mount("/uploads", app=StaticFiles(directory=str(UPLOAD_DIR))),
             Mount("/", app=mcp_app),
-        ]
+        ],
+        lifespan=lifespan,
     )
-
-    @app.on_event("startup")
-    async def _on_startup():
-        # 启动时清理旧文件
-        for f in UPLOAD_DIR.iterdir():
-            if f.is_file():
-                f.unlink(missing_ok=True)
-        # 启动定期清理协程
-        asyncio.create_task(cleanup_task())
 
     return app
 

@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"describe_image","arguments":{"image":"http://203.88.120.150:18253/uploads/56bac641f1324f529dabaee6d659df80.jpg","prompt":"这是什么书的封面？请描述书名、作者和封面设计。"}}}
