@@ -6,8 +6,9 @@
 
 - 支持图像 **URL** 与**本地文件路径**两种输入方式（本地图片自动编码为 data URL）。
 - 内置 3 个工具：图像描述、多模态问答、OCR 文字识别。
-- 通过环境变量灵活配置 API Key、Base URL、默认模型与最大 token 数。
-- 使用 `FastMCP` / 官方 `mcp` SDK 构建，兼容任意 MCP 客户端（Claude Desktop、Cursor、TRAE 等）。
+- **API Key 通过 HTTP 请求头传入**，VPS 上无需存储密钥，更安全。
+- 通过环境变量灵活配置 Base URL、默认模型与最大 token 数。
+- 使用 `FastMCP` 构建，兼容任意 MCP 客户端（Claude Desktop、Cursor、TRAE 等）。
 - 支持 **stdio** 与 **streamable-http** 两种传输模式，可本地运行也可 Docker 远程部署。
 - 提供 Dockerfile 与 docker-compose，内置 GitHub Actions 自动构建多架构镜像（amd64/arm64）。
 
@@ -30,6 +31,15 @@ mimo-vision-mcp/
 
 ## 快速开始
 
+### 认证方式
+
+| 模式 | API Key 传入方式 | 说明 |
+| --- | --- | --- |
+| stdio（本地） | 环境变量 `MIMO_API_KEY` | 传统方式，Key 存在本地 .env 或环境变量中 |
+| streamable-http（远程） | **HTTP 请求头 `X-Mimo-Api-Key`** | Key 由客户端持有，VPS 上无需存储 |
+
+HTTP 模式下，客户端在连接 MCP 服务器时通过 headers 传入 API Key，服务器从请求头读取并转发给 MiMo API，VPS 本身不保存任何密钥。
+
 ### 1. 安装依赖
 
 ```bash
@@ -37,9 +47,9 @@ cd mimo-vision-mcp
 pip install -r requirements.txt
 ```
 
-### 2. 配置 API Key
+### 2. 配置（stdio 模式）
 
-复制 `.env.example` 为 `.env` 并填入你的小米 MiMo API Key（也可直接通过环境变量注入）：
+复制 `.env.example` 为 `.env` 并填入你的小米 MiMo API Key（HTTP 模式下可跳过此步）：
 
 ```bash
 copy .env.example .env   # Windows
@@ -48,7 +58,7 @@ copy .env.example .env   # Windows
 
 | 环境变量 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `MIMO_API_KEY` | 是 | - | 小米 MiMo API Key |
+| `MIMO_API_KEY` | stdio 模式必填 | - | 小米 MiMo API Key（HTTP 模式可由请求头替代） |
 | `MIMO_BASE_URL` | 否 | `https://api.xiaomimimo.com/v1` | API 根地址 |
 | `MIMO_MODEL` | 否 | `mimo-v2.5` | 默认模型 |
 | `MIMO_MAX_TOKENS` | 否 | `1024` | 默认最大生成 token 数 |
@@ -66,7 +76,7 @@ python server.py
 
 ## 配置到 MCP 客户端
 
-在你的 MCP 客户端配置中注册该服务器，例如：
+### stdio 模式（本地）
 
 ```json
 {
@@ -76,6 +86,21 @@ python server.py
       "args": ["C:/path/to/mimo-vision-mcp/server.py"],
       "env": {
         "MIMO_API_KEY": "你的Key"
+      }
+    }
+  }
+}
+```
+
+### streamable-http 模式（远程，API Key 通过请求头传入）
+
+```json
+{
+  "mcpServers": {
+    "mimo-vision": {
+      "url": "http://<你的VPS_IP>:8000/mcp",
+      "headers": {
+        "X-Mimo-Api-Key": "你的MiMo_API_Key"
       }
     }
   }
@@ -123,40 +148,30 @@ python server.py
 
 ### 方式一：使用预构建镜像（推荐）
 
-#### 1. 创建 `.env` 文件
+#### 1. 创建 `docker-compose.yml`
 
-在你的 VPS 上创建一个目录，放入 `.env` 文件：
-
-```bash
-MIMO_API_KEY=你的MiMo_API_Key
-# 以下为可选项，按需修改
-# MIMO_BASE_URL=https://api.xiaomimimo.com/v1
-# MIMO_MODEL=mimo-v2.5
-# MIMO_MAX_TOKENS=1024
-```
-
-#### 2. 创建 `docker-compose.yml`
+在你的 VPS 上创建一个目录，放入 `docker-compose.yml`：
 
 ```yaml
 services:
   mimo-vision-mcp:
-    image: ghcr.io/<你的GitHub用户名>/mimo-vision-mcp:latest
+    image: ghcr.io/samonysh/mimo-vision-mcp:latest
     ports:
       - "8000:8000"
     environment:
-      - MIMO_API_KEY=${MIMO_API_KEY}
-      - MIMO_BASE_URL=${MIMO_BASE_URL:-https://api.xiaomimimo.com/v1}
-      - MIMO_MODEL=${MIMO_MODEL:-mimo-v2.5}
-      - MIMO_MAX_TOKENS=${MIMO_MAX_TOKENS:-1024}
+      # API Key 由客户端通过请求头 X-Mimo-Api-Key 传入，VPS 上无需配置
+      - MIMO_BASE_URL=https://api.xiaomimimo.com/v1
+      - MIMO_MODEL=mimo-v2.5
+      - MIMO_MAX_TOKENS=1024
       - MCP_TRANSPORT=streamable-http
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8000
     restart: unless-stopped
 ```
 
-> 将 `<你的GitHub用户名>` 替换为实际的 GitHub 用户名。
+> VPS 上无需配置任何 API Key，密钥由客户端在连接时通过请求头传入。
 
-#### 3. 启动服务
+#### 2. 启动服务
 
 ```bash
 docker compose up -d
@@ -164,7 +179,7 @@ docker compose up -d
 
 服务将在 `http://<你的VPS_IP>:8000` 上运行，MCP 端点为 `http://<你的VPS_IP>:8000/mcp`。
 
-#### 4. 查看日志
+#### 3. 查看日志
 
 ```bash
 docker compose logs -f
@@ -178,13 +193,16 @@ docker compose up -d --build
 
 ### 连接远程 MCP 服务器
 
-在支持远程 MCP 的客户端中配置：
+在支持远程 MCP 的客户端中配置（API Key 通过请求头传入，VPS 不存储密钥）：
 
 ```json
 {
   "mcpServers": {
     "mimo-vision": {
-      "url": "http://<你的VPS_IP>:8000/mcp"
+      "url": "http://<你的VPS_IP>:8000/mcp",
+      "headers": {
+        "X-Mimo-Api-Key": "你的MiMo_API_Key"
+      }
     }
   }
 }
@@ -195,7 +213,7 @@ docker compose up -d --build
 推送到 `main` 分支或打 `v*` 标签时，GitHub Actions 会自动：
 
 1. 构建 `linux/amd64` + `linux/arm64` 双架构镜像
-2. 推送到 `ghcr.io/<你的GitHub用户名>/mimo-vision-mcp`
+2. 推送到 `ghcr.io/samonysh/mimo-vision-mcp`
 3. 自动打 `latest`、版本号等标签
 
-镜像地址：`ghcr.io/<你的GitHub用户名>/mimo-vision-mcp:latest`
+镜像地址：`ghcr.io/samonysh/mimo-vision-mcp:latest`

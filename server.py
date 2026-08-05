@@ -4,8 +4,12 @@ MiMo Vision MCP Server
 一个支持图像输入的小米 MiMo Vision LLM 的 MCP 服务器。
 通过标准 MCP 协议对外暴露工具，调用小米 MiMo 的 OpenAI 兼容接口完成多模态对话。
 
+认证方式：
+    - HTTP 模式（streamable-http）：客户端通过请求头 X-Mimo-Api-Key 传入 API Key
+    - stdio 模式：通过环境变量 MIMO_API_KEY 传入 API Key
+
 环境变量（见 .env.example）：
-    MIMO_API_KEY    必填，小米 MiMo API Key
+    MIMO_API_KEY    stdio 模式下必填，HTTP 模式下可选（可由请求头替代）
     MIMO_BASE_URL   可选，API 根地址，默认 https://api.xiaomimimo.com/v1
     MIMO_MODEL      可选，默认模型，默认 mimo-v2.5
     MIMO_MAX_TOKENS 可选，默认最大生成 token 数，默认 1024
@@ -21,7 +25,8 @@ from typing import Any
 
 import httpx
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_http_request
 
 # 加载 .env 文件（若存在）
 load_dotenv()
@@ -89,11 +94,25 @@ def _local_image_to_data_url(path: str) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
+def _get_api_key() -> str:
+    """获取 API Key：优先从 HTTP 请求头 X-Mimo-Api-Key 获取，回退到环境变量。"""
+    try:
+        request = get_http_request()
+        if request is not None:
+            key = request.headers.get("x-mimo-api-key", "")
+            if key:
+                return key
+    except Exception:
+        pass
+    return API_KEY
+
+
 def _call_mimo(messages: list[dict[str, Any]], model: str, max_tokens: int) -> str:
     """调用小米 MiMo /chat/completions OpenAI 兼容接口。"""
-    if not API_KEY:
+    api_key = _get_api_key()
+    if not api_key:
         raise RuntimeError(
-            "未配置 MIMO_API_KEY。请在服务器环境或 .env 文件中设置小米 MiMo API Key。"
+            "未配置 API Key。请通过请求头 X-Mimo-Api-Key 或环境变量 MIMO_API_KEY 提供。"
         )
 
     payload = {
@@ -102,7 +121,7 @@ def _call_mimo(messages: list[dict[str, Any]], model: str, max_tokens: int) -> s
         "max_completion_tokens": max_tokens,
     }
     headers = {
-        "api-key": API_KEY,
+        "api-key": api_key,
         "Content-Type": "application/json",
     }
 

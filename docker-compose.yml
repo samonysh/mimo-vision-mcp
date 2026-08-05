@@ -7,7 +7,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - MIMO_API_KEY=${MIMO_API_KEY}
+      # API Key 由客户端通过请求头 X-Mimo-Api-Key 传入，VPS 上无需配置
       - MIMO_BASE_URL=${MIMO_BASE_URL:-https://api.xiaomimimo.com/v1}
       - MIMO_MODEL=${MIMO_MODEL:-mimo-v2.5}
       - MIMO_MAX_TOKENS=${MIMO_MAX_TOKENS:-1024}
